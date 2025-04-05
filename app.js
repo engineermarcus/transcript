@@ -1,39 +1,44 @@
 const WebSocket = require('ws');
-const { Deepgram } = require('@deepgram/sdk');
-const deepgram = new Deepgram('8c399d4c8b91bdd50abee3290bd71ef05d3a167b');
+const { createClient } = require('@deepgram/sdk');
 
-const server = new WebSocket.Server({ port: 3000 });
+const deepgramApiKey = '8c399d4c8b91bdd50abee3290bd71ef05d3a167b'; // Replace with your real key
+const deepgram = createClient(deepgramApiKey);
 
-server.on('connection', (clientSocket) => {
+const wss = new WebSocket.Server({ port: 3000 });
+
+wss.on('connection', async (clientSocket) => {
   console.log('Client connected');
 
-  const dgSocket = deepgram.transcription.live({
-    punctuate: true,
+  const deepgramLive = await deepgram.listen.live({
+    model: 'nova',
     language: 'en-US',
+    smart_format: true,
   });
 
-  dgSocket.on('open', () => {
+  deepgramLive.on('open', () => {
     console.log('Connected to Deepgram');
-
-    clientSocket.on('message', (message) => {
-      dgSocket.send(message);
-    });
-
-    dgSocket.on('transcriptReceived', (data) => {
-      const transcript = JSON.parse(data);
-      const text = transcript.channel?.alternatives[0]?.transcript;
-      if (text) {
-        console.log('Transcript:', text);
-        clientSocket.send(text);
-      }
-    });
   });
 
-  dgSocket.on('error', (err) => console.error('Deepgram error:', err));
-  dgSocket.on('close', () => console.log('Deepgram connection closed'));
+  deepgramLive.on('transcriptReceived', (transcription) => {
+    const transcript = transcription.channel.alternatives[0].transcript;
+    if (transcript) {
+      console.log('Transcript:', transcript);
+      clientSocket.send(transcript);
+    }
+  });
+
+  deepgramLive.on('error', (err) => {
+    console.error('Deepgram error:', err);
+  });
+
+  clientSocket.on('message', (msg) => {
+    if (deepgramLive.getReadyState() === 1) {
+      deepgramLive.send(msg);
+    }
+  });
 
   clientSocket.on('close', () => {
-    dgSocket.finish();
     console.log('Client disconnected');
+    deepgramLive.finish();
   });
 });
