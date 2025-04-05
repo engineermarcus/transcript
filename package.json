@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@deepgram/sdk": "^3.11.3",
+    "ws": "^8.18.1"
+  }
+}
